@@ -405,7 +405,7 @@
 </template>
 
 <script>
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5050/api";
+const API_BASE = "https://promptv.onrender.com/api";
 
 const COLORS = {
   indigo: "#6366f1",
