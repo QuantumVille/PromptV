@@ -10,13 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 5050;
 const JWT_SECRET = process.env.JWT_SECRET || "change-this-secret-now";
 
-app.use(
-  cors({
-    origin: ["http://localhost:5173"],
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+app.use(cors());
 app.use(express.json());
 
 mongoose
