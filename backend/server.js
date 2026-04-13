@@ -5,6 +5,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto"); //install crypto
 
 const app = express();
 const PORT = process.env.PORT || 5050;
@@ -26,11 +27,12 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
+    resetPasswordToken: String,
+    resetPasswordExpires: Date,
   },
   { timestamps: true }
 );
 
-userSchema.index({ email: 1 }, { unique: true });
 
 const promptSchema = new mongoose.Schema(
   {
@@ -223,6 +225,84 @@ app.get("/api/auth/me", authRequired, async (req, res) => {
     return res.status(500).json({ message: "Could not load profile" });
   }
 });
+
+//Password forgot route
+app.post("/api/auth/forgot-password", async (req, res) => {
+  try {
+    const email = req.body.email?.toLowerCase().trim();
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.json({ message: "If this email exists, a reset link has been sent." });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+
+    user.resetPasswordToken = token;
+    user.resetPasswordExpires = Date.now() + 1000 * 60 * 15; // 15 minutes
+
+    await user.save();
+
+    const resetLink = `${process.env.FRONTEND_URL}/?resetToken=${token}`;
+
+    return res.json({
+      message: "Reset link generated",
+      resetLink, // For demo (since no email service)
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Error generating reset link" });
+  }
+});
+
+//verify token route
+app.get("/api/auth/verify-reset-token/:token", async (req, res) => {
+    const user = await User.findOne({
+      resetPasswordToken: req.params.token,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+  
+    if (!user) {
+      return res.status(400).json({ valid: false });
+    }
+  
+    res.json({ valid: true });
+  });
+
+  //reset password route
+  app.post("/api/auth/reset-password", async (req, res) => {
+    const { token, password } = req.body;
+  
+    if (!token || !password) {
+      return res.status(400).json({ message: "Invalid request" });
+    }
+  
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+  
+    if (!user) {
+      return res.status(400).json({ message: "Token expired or invalid" });
+    }
+  
+    const hashed = await bcrypt.hash(password, 10);
+  
+    user.passwordHash = hashed;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+  
+    await user.save();
+  
+    res.json({ message: "Password reset successful" });
+  });
+
+
 
 app.get("/api/prompts/stats", authRequired, async (req, res) => {
   try {
