@@ -73,6 +73,14 @@
           <button class="primary-button" type="submit" :disabled="authBusy">
             {{ authBusy ? "Please wait..." : authMode === 'login' ? 'Log in' : 'Create account' }}
           </button>
+          <button
+            v-if="authMode === 'login'"
+            type="button"
+            class="ghost-button"
+            @click="showForgot = true"
+          >
+            Forgot Password?
+          </button>
 
           <p class="small-note">
             Everything is stored per account, so each user sees only their own prompts.
@@ -401,6 +409,55 @@
         </main>
       </section>
     </section>
+    
+    <!-- forgot password -->
+    <div v-if="showForgot" class="modal-overlay" @click.self="showForgot = false">
+      <div class="modal-box">
+        <h3>Reset Password</h3>
+
+        <input
+          v-model="forgotEmail"
+          type="email"
+          placeholder="Enter your email"
+          class="modal-input"
+        />
+
+        <div class="modal-actions">
+          <button @click="forgotPassword" class="primary-button">
+            Send Reset Link
+          </button>
+
+          <button @click="showForgot = false" class="ghost-button">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+       
+    <!-- RESET PASSWORD MODAL -->
+    <div v-if="showReset" class="modal-overlay" @click.self="showReset = false">
+      <div class="modal-box">
+        <h3>Enter New Password</h3>
+
+        <input
+          type="password"
+          v-model="newPassword"
+          placeholder="New password"
+          class="modal-input"
+        />
+
+        <div class="modal-actions">
+          <button @click="resetPassword" class="primary-button">
+            Reset Password
+          </button>
+
+          <button @click="showReset = false" class="ghost-button">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -462,6 +519,11 @@ export default {
 
       toasts: [],
       searchTimer: null,
+      forgotEmail: "",
+      resetToken: "",
+      newPassword: "",
+      showForgot: false,
+      showReset: false,
     };
   },
 
@@ -537,6 +599,13 @@ export default {
 
   mounted() {
     this.bootstrap();
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("resetToken");
+
+    if (token) {
+       this.resetToken = token;
+       this.showReset = true;
+    }
   },
 
   methods: {
@@ -882,6 +951,51 @@ export default {
       }
     },
 
+    async forgotPassword() {
+      try {
+        await fetch(`${API_BASE}/auth/forgot-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: this.forgotEmail }),
+        });
+
+        this.notify("If the email exists, a reset link has been sent.", "success");
+
+        this.showForgot = false;   // CLOSE MODAL
+        this.forgotEmail = "";     // CLEAR INPUT
+
+      } catch {
+        this.notify("Error sending reset link", "error");
+      }
+    },
+
+    async resetPassword() {
+      if (!this.newPassword.trim()) {
+        this.notify("Password cannot be empty", "error");
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/reset-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: this.resetToken,
+            password: this.newPassword,
+          }),
+        });
+
+        const data = await res.json();
+
+        this.newPassword = "";
+        this.showReset = false;
+        this.notify(data.message, "success");
+
+      } catch {
+        this.notify("Reset failed", "error");
+      }
+    },
+
     exportPrompts() {
       try {
         const blob = new Blob([JSON.stringify(this.prompts, null, 2)], {
@@ -935,6 +1049,39 @@ body {
   padding: 28px;
   color: #e5eef7;
   transition: background 0.25s ease, color 0.25s ease;
+}
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-box {
+  background: #1e293b;
+  padding: 20px;
+  border-radius: 12px;
+  width: 300px;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  background: #334155;
+  border: none;
+  color: white;
+}
+
+.modal-actions {
+  margin-top: 15px;
+  display: flex;
+  gap: 10px;
 }
 
 .app-shell.dark {
